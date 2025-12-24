@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { 
   Plus, Trash2, Image as ImageIcon, Star, LogOut, 
   Loader2, LayoutDashboard, Film, Tv, AlertTriangle, 
-  MessageSquare, PlayCircle, Menu, X, Users, Calendar, Tags
+  MessageSquare, PlayCircle, Menu, X, Users, Calendar, Tags, Edit2, Save
 } from 'lucide-react';
 import './Admin.css';
 
@@ -27,6 +27,11 @@ const Admin = () => {
   const [episodeForm, setEpisodeForm] = useState({ anime_id: '', number: '', url: '' });
   const [msgForm, setMsgForm] = useState({ title: '', text: '' });
   const [posterForm, setPosterForm] = useState({ anime_id: '', file: null });
+  const [carouselForm, setCarouselForm] = useState({ anime_id: '', file: null });
+
+  // Tahrirlash uchun holatlar
+  const [editingAnime, setEditingAnime] = useState(null);
+  const [editForm, setEditForm] = useState({ title: '', rating: '', year: '', genres: '', desc: '', file: null });
 
   // 1. AUTH TEKSHIRUV: Malika ekanligini localStorage-dan tekshirish
   const loggedUser = JSON.parse(localStorage.getItem('animeyUser'));
@@ -40,7 +45,7 @@ const Admin = () => {
 
   const fetchData = async () => {
     const { data: animes } = await supabase.from('anime_list').select('*');
-    const { data: carousels } = await supabase.from('carousel_list').select('*');
+    const { data: carousels } = await supabase.from('carousel_list').select('*, anime_list(title)');
     const { data: episodes } = await supabase.from('episodes').select('*, anime_list(title)');
     const { data: messages } = await supabase.from('notifications').select('*');
     const { count: userCount } = await supabase.from('users_list').select('*', { count: 'exact', head: true });
@@ -86,6 +91,44 @@ const Admin = () => {
     setLoading(false);
   };
 
+  const handleEditAnime = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      let updateData = {
+        title: editForm.title,
+        rating: editForm.rating,
+        year: editForm.year,
+        genres: editForm.genres,
+        description: editForm.desc
+      };
+
+      if (editForm.file) {
+        const url = await uploadFile(editForm.file, 'anime-images');
+        updateData.image_url = url;
+      }
+
+      await supabase.from('anime_list').update(updateData).eq('id', editingAnime);
+      setEditingAnime(null);
+      setEditForm({ title: '', rating: '', year: '', genres: '', desc: '', file: null });
+      fetchData();
+      alert("Anime yangilandi!");
+    } catch (err) { alert(err.message); }
+    setLoading(false);
+  };
+
+  const startEditAnime = (anime) => {
+    setEditingAnime(anime.id);
+    setEditForm({
+      title: anime.title,
+      rating: anime.rating,
+      year: anime.year,
+      genres: anime.genres,
+      desc: anime.description,
+      file: null
+    });
+  };
+
   const handleAddEpisode = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -106,6 +149,23 @@ const Admin = () => {
       const url = await uploadFile(posterForm.file, 'anime-images');
       await supabase.from('anime_list').update({ poster_url: url }).eq('id', posterForm.anime_id);
       alert("Poster yangilandi!");
+      setPosterForm({ anime_id: '', file: null });
+      fetchData();
+    } catch (err) { alert(err.message); }
+    setLoading(false);
+  };
+
+  const handleAddCarousel = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const url = await uploadFile(carouselForm.file, 'anime-images');
+      await supabase.from('carousel_list').insert([{ 
+        anime_id: carouselForm.anime_id, 
+        image_url: url 
+      }]);
+      alert("Carousel qo'shildi!");
+      setCarouselForm({ anime_id: '', file: null });
       fetchData();
     } catch (err) { alert(err.message); }
     setLoading(false);
@@ -125,6 +185,10 @@ const Admin = () => {
     }
   };
 
+  const handleLogout = () => {
+    window.location.href = '/';
+  };
+
   return (
     <div className="admin-container">
       {/* SIDEBAR */}
@@ -138,8 +202,9 @@ const Admin = () => {
           <button className={activeTab === 'anime' ? 'active' : ''} onClick={() => {setActiveTab('anime'); setIsSidebarOpen(false)}}><Tv /> Animelar</button>
           <button className={activeTab === 'episodes' ? 'active' : ''} onClick={() => {setActiveTab('episodes'); setIsSidebarOpen(false)}}><PlayCircle /> Qismlar</button>
           <button className={activeTab === 'posters' ? 'active' : ''} onClick={() => {setActiveTab('posters'); setIsSidebarOpen(false)}}><ImageIcon /> Posterlar</button>
+          <button className={activeTab === 'carousel' ? 'active' : ''} onClick={() => {setActiveTab('carousel'); setIsSidebarOpen(false)}}><Film /> Carousel</button>
           <button className={activeTab === 'messages' ? 'active' : ''} onClick={() => {setActiveTab('messages'); setIsSidebarOpen(false)}}><MessageSquare /> Xabarlar</button>
-          <button className="logout" onClick={() => {localStorage.clear(); window.location.href='/';}}><LogOut /> Chiqish</button>
+          <button className="logout" onClick={handleLogout}><LogOut /> Chiqish</button>
         </nav>
       </aside>
 
@@ -147,7 +212,6 @@ const Admin = () => {
         <header className="content-header">
           <button className="hamburger" onClick={() => setIsSidebarOpen(true)}><Menu /></button>
           <h1>{activeTab.toUpperCase()}</h1>
-          <div className="admin-badge">Admin: Malika</div>
         </header>
 
         {/* DASHBOARD */}
@@ -157,11 +221,12 @@ const Admin = () => {
               <div className="stat-card"><Users /> <div><h3>{stats.users}</h3><p>Foydalanuvchilar</p></div></div>
               <div className="stat-card"><Tv /> <div><h3>{stats.animes}</h3><p>Jami Animelar</p></div></div>
               <div className="stat-card"><PlayCircle /> <div><h3>{list.episodes.length}</h3><p>Jami Qismlar</p></div></div>
+              <div className="stat-card"><Film /> <div><h3>{list.carousels.length}</h3><p>Carousel Banner</p></div></div>
             </div>
           </div>
         )}
 
-        {/* ANIME QO'SHISH */}
+        {/* ANIME QO'SHISH VA TAHRIRLASH */}
         {activeTab === 'anime' && (
           <div className="anime-view">
             <form className="admin-form-card" onSubmit={handleAddAnime}>
@@ -180,12 +245,32 @@ const Admin = () => {
             <div className="card-grid">
               {list.animes.map(a => (
                 <div key={a.id} className="data-card">
-                  <img src={a.image_url} alt="" />
-                  <div className="card-info">
-                    <h4>{a.title}</h4>
-                    <p><Star size={12} fill="gold" /> {a.rating} | <Calendar size={12} /> {a.year}</p>
-                    <button onClick={() => deleteItem(a.id, 'anime_list')} className="del-btn"><Trash2 size={16} /></button>
-                  </div>
+                  {editingAnime === a.id ? (
+                    <form onSubmit={handleEditAnime} className="edit-form">
+                      <input type="text" value={editForm.title} onChange={e => setEditForm({...editForm, title: e.target.value})} />
+                      <input type="number" step="0.1" value={editForm.rating} onChange={e => setEditForm({...editForm, rating: e.target.value})} />
+                      <input type="number" value={editForm.year} onChange={e => setEditForm({...editForm, year: e.target.value})} />
+                      <input type="text" value={editForm.genres} onChange={e => setEditForm({...editForm, genres: e.target.value})} />
+                      <textarea value={editForm.desc} onChange={e => setEditForm({...editForm, desc: e.target.value})} />
+                      <input type="file" onChange={e => setEditForm({...editForm, file: e.target.files[0]})} />
+                      <div className="edit-buttons">
+                        <button type="submit" disabled={loading}><Save size={16} /> Saqlash</button>
+                        <button type="button" onClick={() => setEditingAnime(null)}>Bekor</button>
+                      </div>
+                    </form>
+                  ) : (
+                    <>
+                      <img src={a.image_url} alt="" />
+                      <div className="card-info">
+                        <h4>{a.title}</h4>
+                        <p><Star size={12} fill="gold" /> {a.rating} | <Calendar size={12} /> {a.year}</p>
+                        <div className="card-actions">
+                          <button onClick={() => startEditAnime(a)} className="edit-btn"><Edit2 size={16} /></button>
+                          <button onClick={() => deleteItem(a.id, 'anime_list')} className="del-btn"><Trash2 size={16} /></button>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               ))}
             </div>
@@ -229,7 +314,7 @@ const Admin = () => {
             <form className="admin-form-card" onSubmit={handleAddPoster}>
               <h3>Animega Poster (Banner) Qo'shish</h3>
               <div className="form-grid">
-                <select required onChange={e => setPosterForm({...posterForm, anime_id: e.target.value})}>
+                <select required value={posterForm.anime_id} onChange={e => setPosterForm({...posterForm, anime_id: e.target.value})}>
                   <option value="">Animeni tanlang</option>
                   {list.animes.map(a => <option key={a.id} value={a.id}>{a.title}</option>)}
                 </select>
@@ -242,6 +327,34 @@ const Admin = () => {
                 <div key={a.id} className="data-card poster-card">
                   <img src={a.poster_url} className="poster-img" alt="" />
                   <div className="card-info"><h4>{a.title}</h4></div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* CAROUSEL */}
+        {activeTab === 'carousel' && (
+          <div className="carousel-view">
+            <form className="admin-form-card" onSubmit={handleAddCarousel}>
+              <h3>Carousel Banner Qo'shish</h3>
+              <div className="form-grid">
+                <select required value={carouselForm.anime_id} onChange={e => setCarouselForm({...carouselForm, anime_id: e.target.value})}>
+                  <option value="">Animeni tanlang</option>
+                  {list.animes.map(a => <option key={a.id} value={a.id}>{a.title}</option>)}
+                </select>
+                <input type="file" required onChange={e => setCarouselForm({...carouselForm, file: e.target.files[0]})} />
+                <button type="submit" disabled={loading}>{loading ? <Loader2 className="spin" /> : "Carousel Qo'shish"}</button>
+              </div>
+            </form>
+            <div className="card-grid">
+              {list.carousels.map(c => (
+                <div key={c.id} className="data-card carousel-card">
+                  <img src={c.image_url} className="carousel-img" alt="" />
+                  <div className="card-info">
+                    <h4>{c.anime_list?.title}</h4>
+                    <button onClick={() => deleteItem(c.id, 'carousel_list')} className="del-btn"><Trash2 size={16} /></button>
+                  </div>
                 </div>
               ))}
             </div>

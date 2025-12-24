@@ -9,7 +9,6 @@ import {
   Settings, LogIn, X, Loader2, LogOut, CheckCircle, AlertCircle, Film
 } from 'lucide-react';
 
-// Supabase va Groq Sozlamalari
 const supabase = createClient(
   'https://rxynseqxmfjjindbttdt.supabase.co', 
   'sb_publishable_C4oGHcS1aTQcaZ87PbQQLw_M7JSCNoz'
@@ -23,7 +22,6 @@ const groq = new Groq({
 const App = () => {
   const navigate = useNavigate();
   
-  // Sahifa holatlari
   const [loading, setLoading] = useState(true);
   const [carousels, setCarousels] = useState([]);
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -34,8 +32,6 @@ const App = () => {
   const [allAnime, setAllAnime] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
-  
-  // Auth & Notification holatlari
   const [showAuth, setShowAuth] = useState(false);
   const [authMode, setAuthMode] = useState('login'); 
   const [user, setUser] = useState(JSON.parse(localStorage.getItem('animeyUser')) || null);
@@ -47,17 +43,15 @@ const App = () => {
     fetchNotifications();
   }, []);
 
-  // Carousel auto-slide
   useEffect(() => {
     if (carousels.length > 0) {
       const interval = setInterval(() => {
-        setCurrentSlide((prev) => (prev + 1) % Math.min(carousels.length, 7));
+        setCurrentSlide((prev) => (prev + 1) % carousels.length);
       }, 5000);
       return () => clearInterval(interval);
     }
   }, [carousels]);
 
-  // Notification funksiyasi
   const notify = (msg, type = 'success') => {
     setNotification({ show: true, msg, type });
     setTimeout(() => setNotification({ show: false, msg: '', type: 'success' }), 4000);
@@ -76,7 +70,11 @@ const App = () => {
     try {
       setLoading(true);
       
-      const { data: carData } = await supabase.from('carousel_list').select('*').order('created_at', { ascending: false }).limit(7);
+      const { data: carData } = await supabase
+        .from('carousel_list')
+        .select('*, anime_list(*)')
+        .order('created_at', { ascending: false });
+      
       setCarousels(carData || []);
 
       const { data: animData, error: animErr } = await supabase.from('anime_list').select('*');
@@ -192,14 +190,13 @@ FAQAT JSON formatda qaytar:
   };
 
   const nextSlide = () => {
-    setCurrentSlide((prev) => (prev + 1) % Math.min(carousels.length, 7));
+    setCurrentSlide((prev) => (prev + 1) % carousels.length);
   };
 
   const prevSlide = () => {
-    setCurrentSlide((prev) => (prev - 1 + Math.min(carousels.length, 7)) % Math.min(carousels.length, 7));
+    setCurrentSlide((prev) => (prev - 1 + carousels.length) % carousels.length);
   };
 
-  // Anime sahifasiga o'tish funksiyasi
   const handleAnimeClick = (id) => {
     navigate(`/anime/${id}`);
     setShowSearchModal(false);
@@ -278,15 +275,14 @@ FAQAT JSON formatda qaytar:
             >
               <div className="hero-content container">
                 <span className="tag">Trendda</span>
-                <h1>{carousels[currentSlide].title}</h1>
+                <h1>{carousels[currentSlide].anime_list?.title || 'Anime'}</h1>
                 <div className="hero-meta">
-                  <span className="year">{carousels[currentSlide].year || 'N/A'}</span>
-                  <span className="rating">⭐ {carousels[currentSlide].rating || 'N/A'}</span>
+                  <span className="year">{carousels[currentSlide].anime_list?.year || 'N/A'}</span>
+                  <span className="rating">⭐ {carousels[currentSlide].anime_list?.rating || 'N/A'}</span>
                 </div>
-                <p>{carousels[currentSlide].description}</p>
+                <p>{carousels[currentSlide].anime_list?.description || ''}</p>
                 <div className="hero-btns">
-                  {/* Karusel ichidan animega o'tish */}
-                  <button className="p-btn" onClick={() => handleAnimeClick(carousels[currentSlide].id)}>
+                  <button className="p-btn" onClick={() => handleAnimeClick(carousels[currentSlide].anime_id)}>
                     <Play size={20} fill="currentColor" /> Ko'rish
                   </button>
                   {user?.isAdmin && (
@@ -302,7 +298,7 @@ FAQAT JSON formatda qaytar:
                 <button className="carousel-btn prev" onClick={prevSlide}><ChevronLeft size={30} /></button>
                 <button className="carousel-btn next" onClick={nextSlide}><ChevronRight size={30} /></button>
                 <div className="carousel-dots">
-                  {carousels.slice(0, 7).map((_, idx) => (
+                  {carousels.map((_, idx) => (
                     <span 
                       key={idx} 
                       className={`dot ${idx === currentSlide ? 'active' : ''}`}
@@ -435,13 +431,39 @@ FAQAT JSON formatda qaytar:
       )}
 
       <footer className="footer">
-        <div className="container">
-          <div className="footer-brand">
-            <div className="logo">ANIMEY<span>.UZ</span></div>
-            <p>O'zbek tilidagi eng tezkor va sifatli anime portali.</p>
-            <div className="f-social"><Instagram /><Send /><Facebook /></div>
+        <div className="footer-content">
+          <div className="footer-main">
+            <div className="footer-brand">
+              <div className="logo">ANIMEY<span>.UZ</span></div>
+              <p>O'zbek tilidagi eng tezkor va sifatli anime portali</p>
+              <div className="f-social">
+                <a href="#" aria-label="Instagram"><Instagram size={20} /></a>
+                <a href="#" aria-label="Telegram"><Send size={20} /></a>
+                <a href="#" aria-label="Facebook"><Facebook size={20} /></a>
+              </div>
+            </div>
+            <div className="footer-links">
+              <div className="footer-column">
+                <h4>Bosh sahifa</h4>
+                <ul>
+                  <li><a href="#">Yangi Animelar</a></li>
+                  <li><a href="#">Trenddagi</a></li>
+                  <li><a href="#">Top Reyting</a></li>
+                </ul>
+              </div>
+              <div className="footer-column">
+                <h4>Haqida</h4>
+                <ul>
+                  <li><a href="#">Biz haqida</a></li>
+                  <li><a href="#">Shartlar</a></li>
+                  <li><a href="#">Maxfiyliq</a></li>
+                </ul>
+              </div>
+            </div>
           </div>
-          <div className="footer-bottom"><p>© 2025 Animey.uz</p></div>
+          <div className="footer-bottom">
+            <p>&copy; 2025 Animey.uz. Barcha huquqlar himoyalangan.</p>
+          </div>
         </div>
       </footer>
     </div>
