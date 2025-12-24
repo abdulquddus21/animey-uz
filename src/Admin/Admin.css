@@ -1,0 +1,199 @@
+:root {
+  --admin-bg: #0a0b10;
+  --card-bg: #141620;
+  --accent: #3b82f6;
+  --text: #e2e8f0;
+}
+
+.admin-container {
+  display: flex;
+  min-height: 100vh;
+  background: var(--admin-bg);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+}
+
+/* SIDEBAR */
+.admin-sidebar {
+  width: 280px;
+  background: var(--card-bg);
+  padding: 30px 20px;
+  border-right: 1px solid rgba(255,255,255,0.05);
+  transition: 0.3s;
+}
+
+.sidebar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 40px;
+}
+
+.logo { font-size: 22px; font-weight: 800; }
+.logo span { color: var(--accent); }
+
+.admin-sidebar nav button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 14px 18px;
+  background: none;
+  border: none;
+  color: #94a3b8;
+  border-radius: 12px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.admin-sidebar nav button.active { background: var(--accent); color: white; }
+.admin-sidebar nav button:hover:not(.active) { background: rgba(255,255,255,0.05); }
+
+.logout { margin-top: 50px; color: #ef4444 !important; }
+
+/* CONTENT AREA */
+.admin-content { flex: 1; padding: 30px; }
+
+.content-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+}
+
+.admin-badge {
+  background: rgba(59, 130, 246, 0.1);
+  color: var(--accent);
+  padding: 6px 15px;
+  border-radius: 20px;
+  font-size: 14px;
+}
+
+/* CARDS & STATS */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 20px;
+}
+
+.stat-card {
+  background: var(--card-bg);
+  padding: 25px;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.stat-card svg { font-size: 40px; color: var(--accent); }
+.stat-card h3 { font-size: 28px; margin: 0; }
+.stat-card p { margin: 5px 0 0; color: #94a3b8; }
+
+/* FORMS */
+.admin-form-card {
+  background: var(--card-bg);
+  padding: 25px;
+  border-radius: 20px;
+  margin-bottom: 30px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 15px;
+}
+
+.full-width { grid-column: 1 / -1; }
+
+input, select, textarea {
+  background: #1e212e;
+  border: 1px solid rgba(255,255,255,0.1);
+  padding: 12px;
+  border-radius: 10px;
+  color: white;
+  outline: none;
+}
+
+button[type="submit"] {
+  background: var(--accent);
+  color: white;
+  border: none;
+  padding: 12px;
+  border-radius: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* DATA CARDS (Grid View) */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 20px;
+}
+
+.data-card {
+  background: var(--card-bg);
+  border-radius: 15px;
+  overflow: hidden;
+  position: relative;
+}
+
+.data-card img { width: 100%; height: 220px; object-fit: cover; }
+.card-info { padding: 12px; }
+.card-info h4 { font-size: 14px; margin: 0 0 5px; }
+.card-info p { font-size: 12px; color: #94a3b8; display: flex; align-items: center; gap: 5px; }
+
+.del-btn {
+  background: #ef4444;
+  color: white;
+  border: none;
+  padding: 8px;
+  border-radius: 8px;
+  margin-top: 10px;
+  cursor: pointer;
+}
+
+.poster-img { height: 120px !important; }
+
+/* MOBILE RESPONSIVE */
+.hamburger, .close-menu { display: none; }
+
+@media (max-width: 900px) {
+  .admin-sidebar {
+    position: fixed;
+    left: -100%;
+    top: 0;
+    height: 100vh;
+    z-index: 1000;
+  }
+  .admin-sidebar.open { left: 0; }
+  .hamburger { display: block; background: none; border: none; color: white; }
+  .close-menu { display: block; background: none; border: none; color: white; }
+  
+  .admin-content { padding: 20px; }
+}
+
+/* 404 PAGE */
+.error-404 {
+  height: 100vh;
+  background: #000;
+  color: white;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.error-404 h1 { font-size: 100px; margin: 0; }
+.error-404 button { 
+  margin-top: 20px; 
+  padding: 10px 25px; 
+  background: var(--accent); 
+  border: none; 
+  color: white; 
+  border-radius: 8px; 
+}
+
+.spin { animation: spin 1s linear infinite; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }

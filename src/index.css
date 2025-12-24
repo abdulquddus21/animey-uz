@@ -1,0 +1,21 @@
+/* Scrollbar umumiy eni */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+/* Scroll fon qismi */
+::-webkit-scrollbar-track {
+  background: #0f172a; /* orqa fon */
+}
+
+/* Scroll harakatlanadigan qismi */
+::-webkit-scrollbar-thumb {
+  background: #007aff;
+  border-radius: 10px;
+}
+
+/* Hover bo‘lganda */
+::-webkit-scrollbar-thumb:hover {
+  background: #005bb5;
+}
