@@ -59,7 +59,7 @@ const Admin = () => {
       <div className="error-404">
         <AlertTriangle size={80} color="#ff3b30" />
         <h1>404</h1>
-        <p>Kechirasiz, ushbu sahifa faqat Admin (Malika) uchun!</p>
+        <p>Kechirasiz, ushbu sahifa faqat Topilmadi!</p>
         <button onClick={() => window.location.href = '/'}>Bosh sahifaga qaytish</button>
       </div>
     );

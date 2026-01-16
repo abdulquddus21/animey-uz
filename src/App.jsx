@@ -1,14 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './App.css';
 import { createClient } from '@supabase/supabase-js';
 import Groq from "groq-sdk";
 import { 
-  Search, Bell, User, Play, Star, Clock, 
+  Search, Bell, User, Play, Star, 
   Instagram, Send, Facebook, ChevronRight, ChevronLeft,
-  Settings, LogIn, X, Loader2, LogOut, CheckCircle, AlertCircle, Film
+  Settings, LogIn, X, LogOut, CheckCircle, AlertCircle, Film, Info
 } from 'lucide-react';
 
+// Supabase va Groq sozlamalari
 const supabase = createClient(
   'https://rxynseqxmfjjindbttdt.supabase.co', 
   'sb_publishable_C4oGHcS1aTQcaZ87PbQQLw_M7JSCNoz'
@@ -22,6 +23,7 @@ const groq = new Groq({
 const App = () => {
   const navigate = useNavigate();
   
+  // State management
   const [loading, setLoading] = useState(true);
   const [carousels, setCarousels] = useState([]);
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -38,6 +40,9 @@ const App = () => {
   const [authForm, setAuthForm] = useState({ username: '', password: '', confirmPassword: '' });
   const [notification, setNotification] = useState({ show: false, msg: '', type: 'success' });
 
+  // Refs for scrolling
+  const scrollRefs = useRef({});
+
   useEffect(() => {
     fetchAllData();
     fetchNotifications();
@@ -47,7 +52,7 @@ const App = () => {
     if (carousels.length > 0) {
       const interval = setInterval(() => {
         setCurrentSlide((prev) => (prev + 1) % carousels.length);
-      }, 5000);
+      }, 7000);
       return () => clearInterval(interval);
     }
   }, [carousels]);
@@ -61,9 +66,7 @@ const App = () => {
     try {
       const { data } = await supabase.from('notifications').select('*').order('created_at', { ascending: false }).limit(10);
       setNotifications(data || []);
-    } catch (err) {
-      console.error("Notification xatosi:", err);
-    }
+    } catch (err) { console.error(err); }
   };
 
   const fetchAllData = async () => {
@@ -84,53 +87,14 @@ const App = () => {
 
       if (animData && animData.length > 0) {
         try {
-          const prompt = `Sen anime ekspertisan. Berilgan animelar ro'yxatini tahlil qilib, har bir animeni eng mos toifaga joylashtir. 
-FAQAT JSON formatda qaytar: 
-{
-  "yangi": [id1, id2, ...],
-  "mashhur": [id3, id4, ...], 
-  "top": [id5, id6, ...],
-  "tavsiya": [id7, id8, ...]
-}`;
-
-          const res = await groq.chat.completions.create({
-            messages: [
-              { role: "system", content: prompt },
-              { 
-                role: "user", 
-                content: JSON.stringify(animData.map(a => ({ 
-                  id: a.id, 
-                  title: a.title, 
-                  year: a.year,
-                  rating: a.rating,
-                  description: a.description 
-                }))) 
-              }
-            ],
-            model: "llama-3.3-70b-versatile",
-            temperature: 0.3,
+          setCategorized({
+            yangi: animData.sort((a,b) => b.year - a.year).slice(0, 15),
+            mashhur: animData.sort(() => 0.5 - Math.random()).slice(0, 15),
+            top: animData.filter(a => a.rating > 8.0).slice(0, 15),
+            tavsiya: animData.slice(0, 15)
           });
-
-          const content = res.choices[0]?.message?.content;
-          const jsonMatch = content.match(/\{[\s\S]*\}/);
-          const aiMap = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
-          
-          if (aiMap) {
-            setCategorized({
-              yangi: animData.filter(a => aiMap.yangi?.includes(a.id)),
-              mashhur: animData.filter(a => aiMap.mashhur?.includes(a.id)),
-              top: animData.filter(a => aiMap.top?.includes(a.id)),
-              tavsiya: animData.filter(a => aiMap.tavsiya?.includes(a.id))
-            });
-          }
         } catch (aiErr) {
           console.error("AI xatosi:", aiErr);
-          setCategorized({
-            yangi: animData.slice(0, 6),
-            mashhur: animData.slice(6, 12),
-            top: animData.slice(12, 18),
-            tavsiya: animData.slice(18, 24)
-          });
         }
       }
     } finally {
@@ -189,23 +153,45 @@ FAQAT JSON formatda qaytar:
     notify("Tizimdan chiqildi.");
   };
 
-  const nextSlide = () => {
-    setCurrentSlide((prev) => (prev + 1) % carousels.length);
-  };
-
-  const prevSlide = () => {
-    setCurrentSlide((prev) => (prev - 1 + carousels.length) % carousels.length);
+  const scrollRow = (category, direction) => {
+    if (scrollRefs.current[category]) {
+      const { current } = scrollRefs.current[category];
+      const scrollAmount = direction === 'left' ? -500 : 500;
+      current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+    }
   };
 
   const handleAnimeClick = (id) => {
     navigate(`/anime/${id}`);
     setShowSearchModal(false);
-    setSearchQuery('');
-    setSearchResults([]);
+  };
+
+  // Touch handlers for mobile swipe
+  const touchStartX = useRef(0);
+  const touchEndX = useRef(0);
+
+  const handleTouchStart = (e) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+
+  const handleTouchMove = (e) => {
+    touchEndX.current = e.touches[0].clientX;
+  };
+
+  const handleTouchEnd = () => {
+    if (touchStartX.current - touchEndX.current > 50) {
+      // Swipe left
+      setCurrentSlide((prev) => (prev + 1) % carousels.length);
+    }
+    if (touchStartX.current - touchEndX.current < -50) {
+      // Swipe right
+      setCurrentSlide((prev) => (prev - 1 + carousels.length) % carousels.length);
+    }
   };
 
   return (
     <div className="app">
+      {/* Toast Notification */}
       {notification.show && (
         <div className={`toast ${notification.type}`}>
           {notification.type === 'success' ? <CheckCircle size={20} /> : <AlertCircle size={20} />}
@@ -213,9 +199,12 @@ FAQAT JSON formatda qaytar:
         </div>
       )}
 
-      <header className="header">
+      {/* Header */}
+      <header className="header glass-header">
         <div className="container header-flex">
-          <div className="logo" onClick={() => navigate('/')}>ANIMEY<span>.UZ</span></div>
+          <div className="logo" onClick={() => navigate('/')}>
+            ANIMEY<span>.UZ</span>
+          </div>
           
           <div className="search-wrapper desktop-search">
             <Search size={18} className="s-icon" />
@@ -224,20 +213,8 @@ FAQAT JSON formatda qaytar:
               placeholder="Anime qidirish..." 
               value={searchQuery}
               onChange={(e) => handleSearch(e.target.value)}
+              onFocus={() => setShowSearchModal(true)}
             />
-            {searchResults.length > 0 && (
-              <div className="search-dropdown">
-                {searchResults.slice(0, 5).map(anime => (
-                  <div key={anime.id} className="search-item" onClick={() => handleAnimeClick(anime.id)}>
-                    <img src={anime.image_url} alt={anime.title} />
-                    <div>
-                      <h4>{anime.title}</h4>
-                      <p>{anime.year || 'N/A'} • ⭐ {anime.rating}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
 
           <div className="header-actions">
@@ -250,7 +227,7 @@ FAQAT JSON formatda qaytar:
             </button>
             {user ? (
               <div className="user-control">
-                <div className="avatar-circle">{user.name[0]}</div>
+                <div className="avatar-circle">{user.name[0].toUpperCase()}</div>
                 <button className="logout-btn" onClick={handleLogout}><LogOut size={18} /></button>
               </div>
             ) : (
@@ -262,210 +239,275 @@ FAQAT JSON formatda qaytar:
         </div>
       </header>
 
+      {/* Hero Carousel - Mobile Responsive */}
       <section className="carousel-section">
         {loading ? (
-          <div className="container"><div className="carousel-skeleton"></div></div>
-        ) : carousels.length > 0 ? (
-          <div className="carousel-wrapper">
-            <div 
-              className="hero-banner" 
-              style={{
-                backgroundImage: `linear-gradient(to right, var(--bg) 10%, transparent), url(${carousels[currentSlide].image_url})`
-              }}
-            >
-              <div className="hero-content container">
-                <span className="tag">Trendda</span>
-                <h1>{carousels[currentSlide].anime_list?.title || 'Anime'}</h1>
-                <div className="hero-meta">
-                  <span className="year">{carousels[currentSlide].anime_list?.year || 'N/A'}</span>
-                  <span className="rating">⭐ {carousels[currentSlide].anime_list?.rating || 'N/A'}</span>
-                </div>
-                <p>{carousels[currentSlide].anime_list?.description || ''}</p>
-                <div className="hero-btns">
-                  <button className="p-btn" onClick={() => handleAnimeClick(carousels[currentSlide].anime_id)}>
-                    <Play size={20} fill="currentColor" /> Ko'rish
-                  </button>
-                  {user?.isAdmin && (
-                    <button className="admin-btn" onClick={() => navigate('/admin')}>
-                      <Settings size={20} /> <span className="desktop-only">Admin Panel</span>
-                    </button>
-                  )}
-                </div>
+          <div className="carousel-skeleton">
+            <div className="skeleton-content">
+              <div className="skeleton-line skeleton-title"></div>
+              <div className="skeleton-line skeleton-desc"></div>
+              <div className="skeleton-line skeleton-desc short"></div>
+              <div className="skeleton-buttons">
+                <div className="skeleton-btn"></div>
+                <div className="skeleton-btn"></div>
               </div>
             </div>
-            {carousels.length > 1 && (
-              <>
-                <button className="carousel-btn prev" onClick={prevSlide}><ChevronLeft size={30} /></button>
-                <button className="carousel-btn next" onClick={nextSlide}><ChevronRight size={30} /></button>
-                <div className="carousel-dots">
-                  {carousels.map((_, idx) => (
-                    <span 
-                      key={idx} 
-                      className={`dot ${idx === currentSlide ? 'active' : ''}`}
-                      onClick={() => setCurrentSlide(idx)}
-                    />
-                  ))}
+          </div>
+        ) : carousels.length > 0 ? (
+          <div 
+            className="carousel-wrapper"
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+          >
+            {carousels.map((item, index) => (
+              <div 
+                key={item.id}
+                className={`carousel-slide ${index === currentSlide ? 'active' : ''}`}
+              >
+                {/* Background Image (Blurred) */}
+                <div className="carousel-bg">
+                  <img src={item.image_url} alt="bg" />
+                  <div className="bg-overlay"></div>
                 </div>
-              </>
-            )}
+
+                {/* Content */}
+                <div className="carousel-content container">
+                  <div className="carousel-info">
+                    <div className="meta-tags">
+                      <span className="quality-tag">HD</span>
+                      <span className="rating-tag">⭐ {item.anime_list?.rating || 'N/A'}</span>
+                      <span className="year-tag">{item.anime_list?.year || '2024'}</span>
+                    </div>
+                    <h1 className="title-animate">{item.anime_list?.title || 'Anime Title'}</h1>
+                    <p className="desc-animate">
+                      {item.anime_list?.description 
+                        ? item.anime_list.description.slice(0, 150) + '...' 
+                        : 'Anime tavsifi mavjud emas...'}
+                    </p>
+                    <div className="carousel-actions">
+                      <button className="primary-btn" onClick={() => handleAnimeClick(item.anime_id)}>
+                        <Play fill="currentColor" size={20} /> 
+                        <span>Tomosha</span>
+                      </button>
+                      <button className="secondary-btn" onClick={() => handleAnimeClick(item.anime_id)}>
+                        <Info size={20} /> 
+                        <span>Batafsil</span>
+                      </button>
+                    </div>
+                  </div>
+                  <div className="carousel-poster">
+                    <img src={item.image_url} alt={item.anime_list?.title} />
+                  </div>
+                </div>
+              </div>
+            ))}
+            
+            <button 
+              className="carousel-nav prev" 
+              onClick={() => setCurrentSlide((prev) => (prev - 1 + carousels.length) % carousels.length)}
+              aria-label="Previous slide"
+            >
+              <ChevronLeft size={32} />
+            </button>
+            <button 
+              className="carousel-nav next" 
+              onClick={() => setCurrentSlide((prev) => (prev + 1) % carousels.length)}
+              aria-label="Next slide"
+            >
+              <ChevronRight size={32} />
+            </button>
+            
+            <div className="carousel-dots">
+              {carousels.map((_, idx) => (
+                <span 
+                  key={idx} 
+                  className={`dot ${idx === currentSlide ? 'active' : ''}`}
+                  onClick={() => setCurrentSlide(idx)}
+                />
+              ))}
+            </div>
           </div>
         ) : (
-          <div className="container">
-            <div className="empty-carousel">
-              <Film size={40} />
-              <p>Karusel bo'sh</p>
-            </div>
+          <div className="empty-carousel">
+            <Film size={40} /> 
+            <p>Karusel bo'sh</p>
           </div>
         )}
       </section>
 
-      <main className="container">
+      {/* Main Content - Horizontal Lists */}
+      <main className="main-content">
         {Object.entries({
-          "Yangi Animelar": categorized.yangi,
-          "Trenddagi": categorized.mashhur,
+          "Yangi Qo'shilganlar": categorized.yangi,
+          "Trenddagi Animelar": categorized.mashhur,
           "Eng Yuqori Reyting": categorized.top,
-          "Tavsiya Etiladi": categorized.tavsiya
+          "Tavsiya Etamiz": categorized.tavsiya
         }).map(([title, list]) => (
-          <section key={title} className="anime-section">
-            <div className="section-head">
-              <h2>{title}</h2>
-              <a href="#">Barchasi <ChevronRight size={16} /></a>
-            </div>
-            <div className="scroll-container">
-              {loading ? (
-                [1,2,3,4,5,6].map(i => <div key={i} className="skel-card"></div>)
-              ) : (
-                list.map(anime => (
-                  <div className="anime-item" key={anime.id} onClick={() => handleAnimeClick(anime.id)}>
-                    <div className="anime-img">
-                      <span className="anime-year">{anime.year || 'N/A'}</span>
+          list.length > 0 && (
+            <section key={title} className="category-section">
+              <div className="container">
+                <div className="section-header">
+                  <h2>{title}</h2>
+                  <div className="section-controls">
+                    <button onClick={() => scrollRow(title, 'left')} aria-label="Scroll left">
+                      <ChevronLeft />
+                    </button>
+                    <button onClick={() => scrollRow(title, 'right')} aria-label="Scroll right">
+                      <ChevronRight />
+                    </button>
+                  </div>
+                </div>
+              </div>
+              
+              <div 
+                className="scroll-container" 
+                ref={el => scrollRefs.current[title] = { current: el }}
+              >
+                {list.map((anime, i) => (
+                  <div 
+                    className="anime-card" 
+                    key={`${anime.id}-${i}`}
+                    onClick={() => handleAnimeClick(anime.id)}
+                  >
+                    <div className="card-image">
                       <img src={anime.image_url} alt={anime.title} loading="lazy" />
-                      <div className="anime-rating"><Star size={10} fill="gold" /> {anime.rating}</div>
-                      <div className="hover-play"><Play fill="white" size={30} /></div>
+                      <div className="card-overlay">
+                        <button className="play-circle" aria-label="Play">
+                          <Play fill="white" size={24} />
+                        </button>
+                      </div>
+                      <span className="card-rating">⭐ {anime.rating}</span>
                     </div>
-                    <h4>{anime.title}</h4>
+                    <div className="card-info">
+                      <h4>{anime.title}</h4>
+                      <p>{anime.year} • Anime</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )
+        ))}
+      </main>
+
+      {/* Search Modal */}
+      {showSearchModal && (
+        <div className="modal-overlay" onClick={() => setShowSearchModal(false)}>
+          <div className="search-modal" onClick={e => e.stopPropagation()}>
+            <div className="search-header">
+              <Search size={24} className="search-icon-lg" />
+              <input 
+                type="text" 
+                placeholder="Qidirayotgan anime nomini yozing..." 
+                value={searchQuery}
+                onChange={(e) => handleSearch(e.target.value)}
+                autoFocus
+              />
+              <button className="close-icon" onClick={() => setShowSearchModal(false)}>
+                <X />
+              </button>
+            </div>
+            <div className="search-body">
+              {searchResults.length > 0 ? (
+                <div className="search-grid">
+                  {searchResults.map(anime => (
+                    <div key={anime.id} className="search-card" onClick={() => handleAnimeClick(anime.id)}>
+                      <img src={anime.image_url} alt={anime.title} />
+                      <div className="search-info">
+                        <h5>{anime.title}</h5>
+                        <span>{anime.year}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="no-results">
+                  <Search size={48} style={{ opacity: 0.3 }} />
+                  <p>Natijalar topilmadi</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Notifications Modal */}
+      {showNotifications && (
+        <div className="modal-overlay" onClick={() => setShowNotifications(false)}>
+          <div className="notification-panel" onClick={e => e.stopPropagation()}>
+            <div className="panel-header">
+              <h3>Bildirishnomalar</h3>
+              <button onClick={() => setShowNotifications(false)}>
+                <X />
+              </button>
+            </div>
+            <div className="panel-list">
+              {notifications.length === 0 ? (
+                <p className="empty-msg">Bildirishnomalar yo'q</p>
+              ) : (
+                notifications.map(n => (
+                  <div key={n.id} className="notif-item">
+                    <div className="notif-icon-box">
+                      <Bell size={16} />
+                    </div>
+                    <div>
+                      <h4>{n.title}</h4>
+                      <p>{n.message}</p>
+                    </div>
                   </div>
                 ))
               )}
             </div>
-          </section>
-        ))}
-      </main>
-
-      {showSearchModal && (
-        <div className="modal-overlay" onClick={() => setShowSearchModal(false)}>
-          <div className="search-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="search-modal-header">
-              <h3>Anime Qidirish</h3>
-              <button className="close-btn" onClick={() => setShowSearchModal(false)}><X /></button>
-            </div>
-            <div className="search-input-wrapper">
-              <Search size={20} />
-              <input 
-                type="text" placeholder="Anime nomini kiriting..." value={searchQuery}
-                onChange={(e) => handleSearch(e.target.value)} autoFocus
-              />
-            </div>
-            <div className="search-results-list">
-              {searchResults.map(anime => (
-                <div key={anime.id} className="search-result-item" onClick={() => handleAnimeClick(anime.id)}>
-                  <img src={anime.image_url} alt={anime.title} />
-                  <div className="search-result-info">
-                    <h4>{anime.title}</h4>
-                    <p>{anime.year || 'N/A'} • ⭐ {anime.rating}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
           </div>
         </div>
       )}
 
-      {showNotifications && (
-        <div className="modal-overlay" onClick={() => setShowNotifications(false)}>
-          <div className="notification-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="notification-header">
-              <h3>Bildirishnomalar</h3>
-              <button className="close-btn" onClick={() => setShowNotifications(false)}><X /></button>
-            </div>
-            <div className="notification-list">
-              {notifications.map(notif => (
-                <div key={notif.id} className="notification-item">
-                  <Bell size={18} className="notif-icon" />
-                  <div>
-                    <h4>{notif.title}</h4>
-                    <p>{notif.message}</p>
-                    <span className="notif-time">{new Date(notif.created_at).toLocaleDateString('uz-UZ')}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
+      {/* Auth Modal */}
       {showAuth && (
         <div className="modal-overlay" onClick={() => setShowAuth(false)}>
-          <div className="auth-card" onClick={(e) => e.stopPropagation()}>
-            <button className="close-btn" onClick={() => setShowAuth(false)}><X /></button>
-            <h2>{authMode === 'login' ? 'Xush kelibsiz!' : 'Ro\'yxatdan o\'tish'}</h2>
+          <div className="auth-box" onClick={e => e.stopPropagation()}>
+            <button className="close-abs" onClick={() => setShowAuth(false)}>
+              <X />
+            </button>
+            <h2>{authMode === 'login' ? 'Kirish' : 'Ro\'yxatdan o\'tish'}</h2>
             <form onSubmit={handleAuth}>
-              <div className="input-group"><label>Username</label>
-                <input type="text" required onChange={(e) => setAuthForm({...authForm, username: e.target.value})} />
+              <div className="field">
+                <input 
+                  type="text" 
+                  placeholder="Username" 
+                  required 
+                  onChange={(e) => setAuthForm({...authForm, username: e.target.value})} 
+                />
               </div>
-              <div className="input-group"><label>Parol</label>
-                <input type="password" required onChange={(e) => setAuthForm({...authForm, password: e.target.value})} />
+              <div className="field">
+                <input 
+                  type="password" 
+                  placeholder="Parol" 
+                  required 
+                  onChange={(e) => setAuthForm({...authForm, password: e.target.value})} 
+                />
               </div>
               {authMode === 'register' && (
-                <div className="input-group"><label>Parolni takrorlang</label>
-                  <input type="password" required onChange={(e) => setAuthForm({...authForm, confirmPassword: e.target.value})} />
+                <div className="field">
+                  <input 
+                    type="password" 
+                    placeholder="Parolni tasdiqlash" 
+                    required 
+                    onChange={(e) => setAuthForm({...authForm, confirmPassword: e.target.value})} 
+                  />
                 </div>
               )}
-              <button type="submit" className="login-btn">{authMode === 'login' ? 'Kirish' : 'Ro\'yxatdan o\'tish'}</button>
+              <button type="submit" className="submit-btn">
+                {authMode === 'login' ? 'Kirish' : 'Yaratish'}
+              </button>
             </form>
-            <p className="auth-toggle" onClick={() => setAuthMode(authMode === 'login' ? 'register' : 'login')}>
-              {authMode === 'login' ? "Hisobingiz yo'qmi? Ro'yxatdan o'ting" : "Hisobingiz bormi? Kiring"}
+            <p className="switch-auth" onClick={() => setAuthMode(authMode === 'login' ? 'register' : 'login')}>
+              {authMode === 'login' ? "Akkaunt yo'qmi? Yaratish" : "Akkaunt bormi? Kirish"}
             </p>
           </div>
         </div>
       )}
-
-      <footer className="footer">
-        <div className="footer-content">
-          <div className="footer-main">
-            <div className="footer-brand">
-              <div className="logo">ANIMEY<span>.UZ</span></div>
-              <p>O'zbek tilidagi eng tezkor va sifatli anime portali</p>
-              <div className="f-social">
-                <a href="#" aria-label="Instagram"><Instagram size={20} /></a>
-                <a href="#" aria-label="Telegram"><Send size={20} /></a>
-                <a href="#" aria-label="Facebook"><Facebook size={20} /></a>
-              </div>
-            </div>
-            <div className="footer-links">
-              <div className="footer-column">
-                <h4>Bosh sahifa</h4>
-                <ul>
-                  <li><a href="#">Yangi Animelar</a></li>
-                  <li><a href="#">Trenddagi</a></li>
-                  <li><a href="#">Top Reyting</a></li>
-                </ul>
-              </div>
-              <div className="footer-column">
-                <h4>Haqida</h4>
-                <ul>
-                  <li><a href="#">Biz haqida</a></li>
-                  <li><a href="#">Shartlar</a></li>
-                  <li><a href="#">Maxfiyliq</a></li>
-                </ul>
-              </div>
-            </div>
-          </div>
-          <div className="footer-bottom">
-            <p>&copy; 2025 Animey.uz. Barcha huquqlar himoyalangan.</p>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 };
